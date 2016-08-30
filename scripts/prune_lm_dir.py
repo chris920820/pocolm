@@ -14,7 +14,8 @@ from pocolm_common import *
 
 parser = argparse.ArgumentParser(description="This script takes an lm-dir, as produced by make_lm_dir.py, "
                                  "that should not have the counts split up into pieces, and it prunes "
-                                 "the counts and writes out to a new lm-dir.")
+                                 "the counts and writes out to a new lm-dir.",
+                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 parser.add_argument("--steps", type=str,
                     default='prune*0.25 EM EM EM prune*0.5 EM EM EM prune*1.0 EM EM EM prune*1.0 EM EM EM',
@@ -55,6 +56,8 @@ parser.add_argument("--remove-zeros", type=str, choices=['true','false'],
                     'Only useful for debugging purposes.')
 parser.add_argument("--check-exact-divergence", type=str, choices=['true','false'],
                     default='true', help='')
+parser.add_argument("--max-memory", type=str, default='',
+                    help="Memory limitation for sort.")
 parser.add_argument("lm_dir_in",
                     help="Source directory, for the input language model.")
 parser.add_argument("lm_dir_out",
@@ -70,6 +73,30 @@ os.environ['PATH'] = (os.environ['PATH'] + os.pathsep +
 
 if os.system("validate_lm_dir.py " + args.lm_dir_in) != 0:
     sys.exit("prune_lm_dir.py: failed to validate input LM-dir")
+
+# verify the input string max_memory
+if args.max_memory != '':
+    # valid string max_memory must have at least two items 
+    if len(args.max_memory) >= 2:
+        s = args.max_memory
+        # valid string max_memory can be formatted as:
+        # "a positive integer + a letter or a '%'" or "a positive integer"
+        # the unit of memory size can also be 'T', 'P', 'E', 'Z', or 'Y'. They
+        # are not included here considering their rare use in practice
+        if s[-1] in ['b', '%', 'K', 'M', 'G'] or s[-1].isdigit():
+            for x in s[:-1]:
+                if not x.isdigit():
+                    sys.exit("prune_lm_dir.py: --max-memory should be formatted as "
+                             "'a positive integer' or 'a positive integer appended "
+                             "with 'b', 'K', 'M','G', or '%''.")
+            # max memory size must be larger than zero
+            if int(s[:-1]) == 0:
+                sys.exit("prune_lm_dir.py: --max-memory must be > 0 {unit}.".format(
+                         unit = s[-1]))    
+        else:
+            sys.exit("prune_lm_dir.py: the format of string --max-memory is not correct.")
+    else:
+         sys.exit("prune_lm_dir.py: the lenght of string --max-memory must >= 2.")
 
 num_splits = None
 if os.path.exists(args.lm_dir_in + "/num_splits"):
@@ -94,6 +121,11 @@ else:
 
     if len(steps) == 0:
         sys.exit("prune_lm_dir.py: 'steps' cannot be empty.")
+
+# set the memory restriction for "sort"
+sort_mem_opt = ''
+if args.max_memory != '':
+  sort_mem_opt = ("--buffer-size={0} ".format(args.max_memory))
 
 # returns num-words in this lm-dir.
 def GetNumWords(lm_dir_in):
@@ -124,8 +156,8 @@ def GetTotalNumNgrams(lm_dir_in):
 # counts which may not be removed); it requires work/float.all
 # to exist.
 def CreateProtectedCounts(work):
-    command = ("bash -c 'float-counts-to-histories <{0}/float.all | LC_ALL=C sort |"
-               " histories-to-null-counts >{0}/protected.all'".format(work))
+    command = ("bash -c 'float-counts-to-histories <{0}/float.all | LC_ALL=C sort {1}|"
+               " histories-to-null-counts >{0}/protected.all'".format(work, sort_mem_opt))
     log_file = work + "/log/create_protected_counts.log"
     RunCommand(command, log_file, args.verbose == 'true')
 
@@ -425,17 +457,37 @@ def IterateOnce(threshold, step, iter, recovery_step, recovery_size):
                 break
 
     """
-    global logprob_changes, steps, current_num_ngrams
+    global logprob_changes, logprob_changes_without_dropped_steps, steps, current_num_ngrams
 
     if step > 0:
         steps += 'prune*1.0 EM EM EM'.split()
 
+    thresholds.append(threshold)
     # Prune step
-    logprob_changes.append(RunStep(step, threshold, in_step=recovery_step))
+    logprob_change = RunStep(step, threshold, in_step=recovery_step)
+    logprob_changes.append(logprob_change)
     step += 1
+
+    step_without_dropped_steps = -1
+    if len(logprob_changes_without_dropped_steps) > recovery_step:
+        step_without_dropped_steps = recovery_step
+
+    if step_without_dropped_steps < 0:
+        logprob_changes_without_dropped_steps.append(logprob_change)
+    else:
+        logprob_changes_without_dropped_steps[step_without_dropped_steps] = logprob_change
+        step_without_dropped_steps += 1
+
     while step < len(steps): # EM steps
-      logprob_changes.append(RunStep(step, threshold))
-      step += 1
+        logprob_change = RunStep(step, threshold)
+        logprob_changes.append(logprob_change)
+        step += 1
+
+        if step_without_dropped_steps < 0:
+            logprob_changes_without_dropped_steps.append(logprob_change)
+        else:
+            logprob_changes_without_dropped_steps[step_without_dropped_steps] = logprob_change
+            step_without_dropped_steps += 1
     iter += 1
 
     if MatchTargetSize(current_num_ngrams):
@@ -533,7 +585,7 @@ def FindThreshold():
     # We get the next data point by multiplying 'cur_threshold' by a value that can be
     # as much as 4.0, but will be less than that if we're relatively close to the
     # final desired model size (because we don't want to overshoot).
-    threshold_increase_ratio = min(4.0, (current_num_ngrams / args.target_num_ngrams) ** 0.333)
+    threshold_increase_ratio = min(4.0, (float(current_num_ngrams) / args.target_num_ngrams) ** 0.5)
     cur_threshold = cur_threshold * threshold_increase_ratio
 
     (success, step, iter, recovery_step, recovery_size) = \
@@ -570,6 +622,8 @@ initial_logprob_per_word = None
 final_logprob_per_word = None
 waiting_thread = None
 logprob_changes = []
+logprob_changes_without_dropped_steps = []
+thresholds = []
 
 CreateInitialWorkDir()
 
@@ -594,9 +648,13 @@ if args.target_num_ngrams > 0:
     print ("prune_lm_dir.py: Find the threshold "
         + str(threshold) + " in " + str(iter) + " iteration(s)",
         file=sys.stderr)
+    print ("prune_lm_dir.py: thresholds per iter were "
+       + str(thresholds), file=sys.stderr)
 else:
     for step in range(len(steps)):
-        logprob_changes.append(RunStep(step, args.final_threshold))
+        logprob_change = RunStep(step, args.final_threshold)
+        logprob_changes.append(logprob_change)
+        logprob_changes_without_dropped_steps.append(logprob_change)
 
 FinalizeOutput(work_dir + "/step" + str(len(steps)))
 
@@ -611,7 +669,7 @@ print ("prune_lm_dir.py: reduced number of n-grams from {0} to {1}, i.e. by {2}%
         100.0 * (initial_num_ngrams - current_num_ngrams) / initial_num_ngrams),
        file=sys.stderr)
 
-print ("prune_lm_dir.py: approximate K-L divergence was {0}".format(-sum(logprob_changes)),
+print ("prune_lm_dir.py: approximate K-L divergence was {0}".format(-sum(logprob_changes_without_dropped_steps)),
        file=sys.stderr)
 
 if initial_logprob_per_word != None and steps[-1] == 'EM':

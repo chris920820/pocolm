@@ -16,7 +16,8 @@ from pocolm_common import *
 
 parser = argparse.ArgumentParser(description="Optimizes metaparameters for LM estimation; "
                                  "this utility uses derivatives from get_objf_and_derivs.py or "
-                                 "get_objf_and_derivs_split.py")
+                                 "get_objf_and_derivs_split.py",
+                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("--barrier-epsilon", type=float, default=1.0e-04,
                     help="Scaling factor on logarithmic barrier function to "
                     "enforce parameter constraints (should make very little "
@@ -43,9 +44,15 @@ parser.add_argument("--warm-start-dir", type=str,
                     "run on a subset of data.  Setting --subset-optimize-dir=X is "
                     "equivalent to setting --read-inv-hessian=X/final.inv_hessian and "
                     "--initial-metaparameters=X/final.metaparams")
+<<<<<<< HEAD
 parser.add_argument("--clean-up", type=str, default="true", choices=["true","false"],
                     help="If true, clean-up will remove intermediate files optimization process "
                     "generated that won't be used in future")
+=======
+parser.add_argument("--cleanup", type=str, default="true", choices=["true","false"],
+                    help="If true, remove intermediate files in work_dir "
+                    "that won't be used in future")
+>>>>>>> 3b658433df3d05abde723c353a41de5bf678049f
 parser.add_argument("count_dir",
                     help="Directory in which to find counts")
 parser.add_argument("optimize_dir",
@@ -252,14 +259,22 @@ def GetObjfAndDeriv(x):
                   "finished run)".format(deriv_file, objf_file), file=sys.stderr)
         else:
             # we need to call get_objf_and_derivs.py
+<<<<<<< HEAD
             clean_up_opt = "--clean-up false" if args.clean_up == "false" else ""
             command = ("get_objf_and_derivs{maybe_split}.py {split_opt} {clean_up_opt} --derivs-out={derivs} {counts} {metaparams} "
+=======
+            command = ("get_objf_and_derivs{maybe_split}.py {split_opt} --cleanup={cleanup} --derivs-out={derivs} {counts} {metaparams} "
+>>>>>>> 3b658433df3d05abde723c353a41de5bf678049f
                        "{objf} {work}".format(derivs = deriv_file, counts = args.count_dir,
                                               metaparams = metaparameter_file,
                                                       maybe_split = "_split" if args.num_splits > 1 else "",
                                                       split_opt = ("--num-splits={0}".format(args.num_splits) if
                                                                   args.num_splits > 1 else ""),
+<<<<<<< HEAD
                                                       clean_up_opt = clean_up_opt,
+=======
+                                                      cleanup = args.cleanup,
+>>>>>>> 3b658433df3d05abde723c353a41de5bf678049f
                                               objf = objf_file, work = args.optimize_dir + "/work"))
             RunCommand(command, log_file, verbose = True)
         derivs = ReadMetaparametersOrDerivs(deriv_file)

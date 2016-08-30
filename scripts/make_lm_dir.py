@@ -13,7 +13,8 @@ parser = argparse.ArgumentParser(description="This script, given counts and meta
                                  "If you specify --keep-splits=true, the file num_splits will "
                                  "be created (containing the number of split pieces of the counts), "
                                  "and float.all won't exist, but float.all.split1, float.all.split2 "
-                                 "etc., will be created.");
+                                 "etc., will be created.",
+                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 parser.add_argument('--fold-dev-into', type=str,
                     help='If supplied, the name of data-source into which to fold the '
@@ -30,9 +31,15 @@ parser.add_argument("--keep-splits", type=str, choices=['true','false'],
                     "to the most recent history-word (the unigram state is repeated), "
                     "and the file num_splits containing the --num-splits argument, which "
                     "must be >1.")
+<<<<<<< HEAD
 parser.add_argument("--clean-up", type=str, default="true", choices=["true","false"],
                     help="If true, clean-up will remove intermediate files optimization process "
                     "generated that won't be used in future")
+=======
+parser.add_argument("--cleanup", type=str, default="true", choices=["true","false"],
+                    help="If true, remove intermediate files in work_dir "
+                    "that won't be used in future")
+>>>>>>> 3b658433df3d05abde723c353a41de5bf678049f
 parser.add_argument("count_dir",
                     help="Directory from which to obtain counts files\n")
 parser.add_argument("metaparameters",
@@ -128,13 +135,23 @@ print("false", file=f)
 f.close()
 clean_up_opt = "--clean-up false" if args.clean_up == "false" else ""
 if args.num_splits == 1:
+<<<<<<< HEAD
     command = ("get_objf_and_derivs.py {clean_up_opt} {fold_dev_opt} {count_dir} {metaparameters} "
                "{work_dir}/objf {work_dir} 2>{work_dir}/log.txt".format(clean_up_opt=clean_up_opt,
                                                         fold_dev_opt = fold_dev_opt,
+=======
+    cleanup_opt = '--cleanup=' + args.cleanup
+    if args.cleanup == 'true':
+        cleanup_opt = ' --need-model=true'
+    command = ("get_objf_and_derivs.py {fold_dev_opt} {cleanup_opt} {count_dir} {metaparameters} "
+               "{work_dir}/objf {work_dir} 2>{work_dir}/log.txt".format(fold_dev_opt = fold_dev_opt,
+                 cleanup_opt = cleanup_opt,
+>>>>>>> 3b658433df3d05abde723c353a41de5bf678049f
                                                         count_dir = args.count_dir,
                                                         metaparameters = args.metaparameters,
                                                         work_dir = work_dir))
 else:
+<<<<<<< HEAD
     need_model_opt = '--need-model true' if args.keep_splits == 'false' else ''
     need_split_float_opt = '--need-split-float true' if args.keep_splits == 'true' else ''
     command = ("get_objf_and_derivs_split.py --num-splits={num_splits} {clean_up_opt} {need_model_opt} "
@@ -142,6 +159,18 @@ else:
                "{work_dir} 2>{work_dir}/log.txt".format( clean_up_opt = clean_up_opt,
             need_model_opt = need_model_opt, need_split_float_opt = need_split_float_opt,
             fold_dev_opt = fold_dev_opt, num_splits = args.num_splits, count_dir = args.count_dir,
+=======
+    need_model_opt = '--need-model=true' if args.keep_splits == 'false' else ''
+    cleanup_opt = '--cleanup=' + args.cleanup
+    if args.cleanup == 'true' and args.keep_splits == 'true':
+        cleanup_opt += ' --need-split-model=true'
+    command = ("get_objf_and_derivs_split.py --num-splits={num_splits} {need_model_opt} "
+               "{fold_dev_opt} {cleanup_opt} {count_dir} {metaparameters} {work_dir}/objf "
+               "{work_dir} 2>{work_dir}/log.txt".format(
+            need_model_opt = need_model_opt, fold_dev_opt = fold_dev_opt,
+            cleanup_opt = cleanup_opt,
+            num_splits = args.num_splits, count_dir = args.count_dir,
+>>>>>>> 3b658433df3d05abde723c353a41de5bf678049f
             metaparameters = args.metaparameters, work_dir = work_dir))
 
 print("make_lm_dir.py: running command {0}".format(command), file=sys.stderr)

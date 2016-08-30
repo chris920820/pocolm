@@ -9,7 +9,8 @@ parser = argparse.ArgumentParser(description="This script takes an lm-dir, as pr
                                  "that should not have the counts split up into pieces, and it "
                                  "splits up the counts into a specified number of pieces. "
                                  "Output is the 'split' form of lm-dir, with float.all.{1,2,3...} and "
-                                 "num_splits")
+                                 "num_splits",
+                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("lm_dir_in",
                     help="Source directory, for the input language model.")
 parser.add_argument("num_splits", type=int,
@@ -41,7 +42,7 @@ if not os.path.isdir(args.lm_dir_out):
         sys.exit("split_lm_dir.py: error creating directory " + args.lm_dir_out + ": " + str(e))
 
 # copy some smallish informational files from the input to output directory.
-for name in [ 'words.txt', 'ngram_order', 'names', 'metaparameters', 'was_pruned' ]:
+for name in [ 'words.txt', 'ngram_order', 'num_ngrams', 'names', 'metaparameters', 'was_pruned' ]:
     src = args.lm_dir_in + "/" + name
     dest = args.lm_dir_out + "/" + name
     try:

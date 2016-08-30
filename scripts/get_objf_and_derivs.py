@@ -14,7 +14,8 @@ from pocolm_common import *
 parser = argparse.ArgumentParser(description="Given a counts directory and a set of "
                                  "metaparameters, this script does the language model discounting "
                                  "and computes the objective function, which is the log-probability "
-                                 "per word on the dev set.")
+                                 "per word on the dev set.",
+                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 
 parser.add_argument("--fold-dev-into-int", type=int,
@@ -22,6 +23,12 @@ parser.add_argument("--fold-dev-into-int", type=int,
                     "should be folded (not compatible with the --derivs-out option)")
 parser.add_argument("--derivs-out", type=str,
                     help="Filename to which to write derivatives (if supplied)")
+parser.add_argument("--need-model", type=str, default="false", choices=["true","false"],
+                    help="If true, this script will create work_dir/float.all (the merged "
+                    "file of counts")
+parser.add_argument("--cleanup", type=str, default="true", choices=["true","false"],
+                    help="If true, remove intermediate files in work_dir "
+                    "that won't be used in future")
 parser.add_argument("--verbose", type=str, default='false', choices=['true','false'],
                     help="If true, print commands as we execute them.")
 parser.add_argument("--clean-up", type=str, default="true", choices=["true","false"],
@@ -100,6 +107,25 @@ for o in range(2, ngram_order + 1):
     d4[o] = float(f.readline().split()[1])
 f.close()
 
+
+def RemoveFiles(dir, filenames):
+  for filename in filenames:
+      filepath = os.path.join(dir, filename)
+      if os.path.isfile(filepath):
+          os.remove(filepath)
+
+def Cleanup():
+    filenames = ['float.1']
+    if args.need_model == 'false':
+        filenames.append('float.all')
+
+    for o in range(2, ngram_order + 1):
+        for prefix in ['discount.','discount_derivs.','float_derivs.']:
+            filenames.append(prefix + str(o - 1))
+        for prefix in ['float.','merged.','merged_derivs.','float_derivs.']:
+            filenames.append(prefix + str(o))
+
+    RemoveFiles(args.work_dir, filenames)
 
 # This function does the count merging for the specified
 # n-gram order, writing to $work_dir/merged.$order
@@ -327,7 +353,12 @@ MergeAllOrders()
 ComputeObjfAndFinalDerivs(args.derivs_out != None)
 
 if args.derivs_out == None:
+<<<<<<< HEAD
     CleanUpIfNeeded()
+=======
+    if args.cleanup == 'true':
+        Cleanup()
+>>>>>>> 3b658433df3d05abde723c353a41de5bf678049f
     sys.exit(0)
 
 
@@ -355,7 +386,12 @@ for o in range(2, ngram_order + 1):
     MergeCountsBackward(o)
 
 WriteDerivs()
+<<<<<<< HEAD
 # Do Clean-up if needed and write whether or not the clean-up had been done
 CleanUpIfNeeded()
 
 
+=======
+if args.cleanup == 'true':
+    Cleanup()
+>>>>>>> 3b658433df3d05abde723c353a41de5bf678049f

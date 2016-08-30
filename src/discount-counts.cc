@@ -134,9 +134,6 @@ class CountDiscounter {
         discounted_state.counts.begin();
     double lm_state_total = lm_state.discount,
         discount_total = lm_state.discount;
-    assert(discount_total == 0.0);
-    // this assertion can pass all the tests in egs/swbd/run.sh
-    // maybe lm_state_total and discount_total should be initialised to zero.
     for (; in_iter != in_end; ++in_iter,++out_iter) {
       int32 word = in_iter->first;
       const Count &count = in_iter->second;
@@ -194,7 +191,7 @@ class CountDiscounter {
     d2_ = ConvertToFloat(argv[2]);
     d3_ = ConvertToFloat(argv[3]);
     d4_ = ConvertToFloat(argv[4]);
-    assert(1.0 > d1_ && d1_ >= d2_ && d2_ >= d3_ && d3_ >= d4_ && d4_ >= 0);
+    assert(1.0 >= d1_ && d1_ >= d2_ && d2_ >= d3_ && d3_ >= d4_ && d4_ >= 0);
 
     input_.open(argv[5], std::ios_base::binary|std::ios_base::in);
     if (input_.fail()) {
@@ -223,9 +220,11 @@ class CountDiscounter {
     if (!(*end == 0.0)) {
       std::cerr << "discount-counts: expected float, got '" << str << "'\n";
     }
-    if (!(ans >= 0.0 and ans < 1.0)) {
+    if (!(ans >= 0.0 and ans <= 1.0)) {
+      // note: we really expect discount < 1.0, but once it gets close to 1,
+      // due to rounding it can look like exactly 1.0.
       std::cerr << "discount-counts: discounting values must be "
-                << ">=0.0 and <1.0: " << str << "\n";
+                << ">=0.0 and <= 1.0: " << str << "\n";
       exit(1);
     }
     return ans;
